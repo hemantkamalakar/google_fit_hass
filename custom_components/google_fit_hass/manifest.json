@@ -1,7 +1,7 @@
 {
     "domain": "google_fit_hass",
     "name": "Google fit hass",
-    "documentation": "https://github.com/custom-components/google_fit_hass",
+    "documentation": "https://github.com/hemantkamalakar/google_fit_hass",
     "dependencies": [],
     "codeowners": ["@hemantkamalakar"],
     "requirements": [
