@@ -16,6 +16,7 @@ sensor:
 ```
 
 At the moment, provides following measurements:
+```yaml
     - steps
     - distance
     - time
@@ -24,6 +25,7 @@ At the moment, provides following measurements:
     - height
     - sleep
     - heartrate
+```    
 
 Sensor is designed to be flexible and allow customization to add new Google Fit
 dimensions with minimal effort with relative knowledge of Python and Fitness

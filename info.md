@@ -1,4 +1,5 @@
-** Creates Google Fit sensors.
+#A Home assistant custom component to get your fitness information using Google Fitness API.
+
 At the moment, provides following measurements:
     - steps
     - distance
