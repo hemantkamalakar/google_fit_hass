@@ -8,7 +8,7 @@ To get started put all the files from`/custom_components/google_fit_hass/` here:
 
 ```yaml
 sensor:  
-  - platform: google_fit
+  - platform: google_fit_hass
     name: hemant
     client_id: !secret google_client_id
     client_secret: !secret google_client_secret
