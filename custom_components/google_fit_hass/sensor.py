@@ -1,46 +1,3 @@
-"""Creates Google Fit sensors.
-At the moment, provides following measurements:
-    - steps
-    - distance
-    - time
-    - calories
-    - weight
-    - height
-    - sleep
-    - heartrate
-
-Sensor is designed to be flexible and allow customization to add new Google Fit
-dimensions with minimal effort with relative knowledge of Python and Fitness
-Rest API.
-
-In order to add this component as is, add a new sensor:
-
-sensor:
-  - platform: google_fit
-    name: Google Fit
-    client_id: your_client_id
-    client_secret: your_client_secret
-
-In order to generate your client_id and client_secret, see the prerequisites
-for Google Calender component:
-https://www.home-assistant.io/components/calendar.google/#prerequisites
-
-To make sensor work you have to enable Fintness API in your project.
-In oder to enable Fitness API open Google cloud console: 
-https://console.cloud.google.com/apis/library/fitness.googleapis.com
-and enable API.
-
-It is recommendable to store client_id and client_secret as secret as
-possible. You can read about it on:
-https://www.home-assistant.io/docs/configuration/secrets/
-
-Example:
-  - platform: google_fit
-    name: Bob
-    client_id: !secret google_fit_client_id
-    client_secret: !secret google_fit_client_secret
-"""
-
 import logging
 import os
 import time
@@ -63,15 +20,16 @@ _LOGGER = logging.getLogger(__name__)
 
 # Sensor details.
 SENSOR = 'google_fit'
-SENSOR_NAME = '{} {}'
+
 # Sensor base attributes.
 ATTR_LAST_UPDATED = 'last_updated'
 CONF_CLIENT_ID = 'client_id'
 CONF_CLIENT_SECRET = 'client_secret'
 DEFAULT_NAME = 'Google Fit'
 ICON = 'mdi:heart-pulse'
-MIN_TIME_BETWEEN_SCANS = timedelta(minutes=10)
-MIN_TIME_BETWEEN_UPDATES = timedelta(minutes=10)
+MIN_TIME_BETWEEN_SCANS = timedelta(minutes=8)
+MIN_TIME_BETWEEN_UPDATES = timedelta(minutes=8)
+SENSOR_NAME = '{} {}'
 
 
 # # Define schema of sensor.
@@ -93,40 +51,46 @@ NOTIFICATION_TITLE = 'Google Fit Setup'
 # Google Fit API URL.
 API_VERSION = 'v1'
 API_USER_ID = 'me'
-WEIGHT = 'weight'
+WEIGHT_LBS = 'weight (lbs)'
+WEIGHT_KG = 'weight (kg)'
 HEIGHT = 'height'
-DISTANCE = 'distance'
+DISTANCE_KM = 'distance (km)'
+DISTANCE_MI = 'distance (mi)'
 STEPS = 'steps'
 MOVE_TIME = 'move time'
 CALORIES = 'calories'
 SLEEP = 'sleep'
+MEDITATION = 'meditation'
+HEARTRATE = 'heart rate'
 TOKEN_FILE = ''
-#name = config.get(const.CONF_NAME)
 
 # Endpoint scopes required for the sensor.
 # Read more: https://developers.google.com/fit/rest/v1/authorization
 
 SCOPES = ['https://www.googleapis.com/auth/fitness.body.read',
-          'https://www.googleapis.com/auth/fitness.body.write',
-          'https://www.googleapis.com/auth/fitness.activity.read',
-          'https://www.googleapis.com/auth/fitness.location.read']
+    'https://www.googleapis.com/auth/fitness.body.write',
+    'https://www.googleapis.com/auth/fitness.activity.read',
+    'https://www.googleapis.com/auth/fitness.location.read']
+
 
 def _today_dataset_start():
     today = datetime.today().date()
     return int(time.mktime(today.timetuple()) * 1000000000)
 
+
 def _today_dataset_end():
     now = datetime.today()
-    return int(time.mktime(now.timetuple()) * 1000000000)
+    return int(time.mktime(now.timetuple()) * 1000000000 + 1)
+
 
 def _get_client(token_file):
         """Get the Google Fit service with the storage file token.
 
         Args:
-          token_file: str, File path for API token.
+        token_file: str, File path for API token.
 
         Return:
-          Google Fit API client.
+        Google Fit API client.
         """
         import httplib2
         from googleapiclient import discovery as google_discovery
@@ -141,9 +105,9 @@ def _get_client(token_file):
             'fitness', API_VERSION, http=http, cache_discovery=False)
         return service
 
+
 def setup(hass, config):
     """Set up the Google Fit platform."""
-    #token_file = hass.config.path(TOKEN_FILE)
     name = config.get(const.CONF_NAME)
     TOKEN_FILE = '.{}_{}.token'.format(name,SENSOR)
     token_file = hass.config.path(TOKEN_FILE)
@@ -183,8 +147,8 @@ def do_authentication(hass, config):
         'In order to authorize Home-Assistant to view your Google Fit data '
         'you must visit: <a href="{}" target="_blank">{}</a> and enter '
         'code: {}'.format(dev_flow.verification_url,
-                          dev_flow.verification_url,
-                          dev_flow.user_code),
+            dev_flow.verification_url,
+            dev_flow.user_code),
         title=NOTIFICATION_TITLE, notification_id=NOTIFICATION_ID
     )
 
@@ -210,7 +174,7 @@ def do_authentication(hass, config):
         listener()
 
     listener = track_time_change(hass, step2_exchange,
-                                 second=range(0, 60, dev_flow.interval))
+        second=range(0, 60, dev_flow.interval))
     return True
 
 
@@ -222,14 +186,17 @@ def setup_platform(hass, config, add_devices, discovery_info=None):
     token_file = hass.config.path(TOKEN_FILE)
     client = _get_client(token_file)
     
-    add_devices([GoogleFitWeightSensor(client, name),
-                 GoogleFitHeartRateSensor(client, name),
-                 GoogleFitHeightSensor(client, name),
-                 GoogleFitStepsSensor(client, name),
-                 GoogleFitSleepSensor(client, name),
-                 GoogleFitMoveTimeSensor(client, name),
-                 GoogleFitCaloriesSensor(client, name),
-                 GoogleFitDistanceSensor(client, name)], True)
+    add_devices([GoogleFitWeightLbsSensor(client,name),
+        GoogleFitWeightKGSensor(client, name),
+        GoogleFitHeartRateSensor(client, name),
+        GoogleFitHeightSensor(client, name),
+        GoogleFitStepsSensor(client, name),
+        GoogleFitSleepSensor(client, name),
+        GoogleFitMeditationSensor(client, name),
+        GoogleFitMoveTimeSensor(client, name),
+        GoogleFitCaloriesSensor(client, name),
+        GoogleFitDistanceKmSensor(client, name),
+        GoogleFitDistanceMiSensor(client, name)], True)
 
 
 class GoogleFitSensor(entity.Entity):
@@ -262,8 +229,9 @@ class GoogleFitSensor(entity.Entity):
     @property
     def last_updated(self):
         """Returns date when it was last updated."""
-        if isinstance(self._last_updated, int):
-            return utc_from_timestamp(self._last_updated)
+        if self._last_updated != 'unknown':
+            stamp = float(self._last_updated)
+            return utc_from_timestamp(int(stamp))
 
     @property
     def name(self):
@@ -312,10 +280,10 @@ class GoogleFitSensor(entity.Entity):
         """Gets data sources information for weight data.
 
         Args:
-          data_type_name: str, Type of data sources to retrieve.
+        data_type_name: str, Type of data sources to retrieve.
 
         Returns:
-          Dictionary containing all available data sources.
+        Dictionary containing all available data sources.
         """
         datasources_request = self._client.users().dataSources().list(
             userId=API_USER_ID,
@@ -332,7 +300,18 @@ class GoogleFitSensor(entity.Entity):
             get(userId=API_USER_ID, dataSourceId=source, datasetId=dataset). \
             execute()
 
-class GoogleFitWeightSensor(GoogleFitSensor):
+    def _get_dataset_from_last_update(self, source):
+        dataset_start = int(_today_dataset_start())
+        dataset_start = dataset_start -1080000000000
+        dataset = "%s-%s" % (dataset_start, _today_dataset_end())
+
+        return self._client.users().dataSources(). \
+            datasets(). \
+            get(userId=API_USER_ID, dataSourceId=source, datasetId=dataset). \
+            execute()
+
+
+class GoogleFitWeightKGSensor(GoogleFitSensor):
     @property
     def unit_of_measurement(self):
         """Returns the unit of measurement."""
@@ -346,7 +325,7 @@ class GoogleFitWeightSensor(GoogleFitSensor):
     @property
     def _name_suffix(self):
         """Returns the name suffix of the sensor."""
-        return WEIGHT
+        return WEIGHT_KG
 
     @util.Throttle(MIN_TIME_BETWEEN_SCANS, MIN_TIME_BETWEEN_UPDATES)
     def update(self):
@@ -389,7 +368,68 @@ class GoogleFitWeightSensor(GoogleFitSensor):
 
             self._last_updated = round(last_time_update / 1000)
             self._state = last_weight
-            print(self.name,  last_weight)
+            _LOGGER.debug("Last weight %s", last_weight)
+            self._attributes = {}
+
+
+class GoogleFitWeightLbsSensor(GoogleFitSensor):
+    @property
+    def unit_of_measurement(self):
+        """Returns the unit of measurement."""
+        return const.MASS_POUNDS
+
+    @property
+    def icon(self):
+        """Return the icon."""
+        return 'mdi:weight-pound'
+
+    @property
+    def _name_suffix(self):
+        """Returns the name suffix of the sensor."""
+        return WEIGHT_LBS
+
+    @util.Throttle(MIN_TIME_BETWEEN_SCANS, MIN_TIME_BETWEEN_UPDATES)
+    def update(self):
+        """Extracts the relevant data points for from the Fitness API."""
+        if not self._client:
+            return
+
+        weight_datasources = self._get_datasources('com.google.weight')
+
+        weight_datapoints = {}
+        for datasource in weight_datasources:
+            datasource_id = datasource.get('dataStreamId')
+            weight_request = self._client.users().dataSources().\
+                dataPointChanges().list(
+                    userId=API_USER_ID,
+                    dataSourceId=datasource_id,
+                )
+            weight_data = weight_request.execute()
+            weight_inserted_datapoints = weight_data.get('insertedDataPoint')
+
+            for datapoint in weight_inserted_datapoints:
+                point_value = datapoint.get('value')
+                if not point_value:
+                    continue
+                weight = point_value[0].get('fpVal')
+                if not weight:
+                    continue
+                weight = round(weight * 2.20462262185, 2) # Convert to pounds while rounding
+                last_update_milis = int(datapoint.get('modifiedTimeMillis', 0))
+                if not last_update_milis:
+                    continue
+                weight_datapoints[last_update_milis] = weight
+
+        if weight_datapoints:
+            time_updates = list(weight_datapoints.keys())
+            time_updates.sort(reverse=True)
+
+            last_time_update = time_updates[0]
+            last_weight = weight_datapoints[last_time_update]
+
+            self._last_updated = round(last_time_update / 1000)
+            self._state = last_weight
+            _LOGGER.debug("Last weight %s", last_weight)
             self._attributes = {}
 
 
@@ -447,12 +487,14 @@ class GoogleFitHeightSensor(GoogleFitSensor):
 
             self._last_updated = round(last_time_update / 1000)
             self._state = last_height
-            #print(self.name, last_height)
-
+            _LOGGER.debug("Last height %s", last_height)
             self._attributes = {}
 
 
 class GoogleFitHeartRateSensor(GoogleFitSensor):
+    DATA_SOURCE = "derived:com.google.heart_rate.bpm:com.google.android.gms:" \
+        "merge_heart_rate_bpm"
+
     @property
     def unit_of_measurement(self):
         """Returns the unit of measurement."""
@@ -466,50 +508,35 @@ class GoogleFitHeartRateSensor(GoogleFitSensor):
     @property
     def _name_suffix(self):
         """Returns the name suffix of the sensor."""
-        return 'HEARTRATE'
+        return HEARTRATE
 
     @util.Throttle(MIN_TIME_BETWEEN_SCANS, MIN_TIME_BETWEEN_UPDATES)
     def update(self):
         """Extracts the relevant data points for from the Fitness API."""
-        heartrate_datasources = self._get_datasources('com.google.heart_rate.bpm')
+        values = {}
+        for datapoint in self._get_dataset_from_last_update(self.DATA_SOURCE)["point"]:
+            datapoint_value = datapoint["value"][0]["fpVal"]
+            datapoint_value_ts= datapoint["startTimeNanos"]
+            values[datapoint_value_ts] = datapoint_value
 
-        heart_datapoints = {}
-        for datasource in heartrate_datasources:
-            datasource_id = datasource.get('dataStreamId')
-            heart_request = self._client.users().dataSources().\
-                dataPointChanges().list(
-                    userId=API_USER_ID,
-                    dataSourceId=datasource_id,
-                )
-            heart_data = heart_request.execute()
-            heart_inserted_datapoints = heart_data.get('insertedDataPoint')
-            for datapoint in heart_inserted_datapoints:
-                point_value = datapoint.get('value')
-                if not point_value:
-                    continue
-                heartrate = point_value[0].get('fpVal')
-                if not heartrate:
-                    continue
-                last_update_milis = int(datapoint.get('modifiedTimeMillis', 0))
-                if not last_update_milis:
-                    continue
-                heart_datapoints[last_update_milis] = heartrate
+        time_updates = list(values.keys())
+        time_updates.sort(reverse=True)
+        if not time_updates:
+            self._attributes = {}
+            return None
+        
+        last_time_update = time_updates[0]
+        last_heartrate = values[last_time_update]
 
-        if heart_datapoints:
-            time_updates = list(heart_datapoints.keys())
-            time_updates.sort(reverse=True)
-
-            last_time_update = time_updates[0]
-            last_heartrate = heart_datapoints[last_time_update]
-
-            self._last_updated = round(last_time_update / 1000)
-            self._state = last_heartrate
+        self._last_updated = round(int(last_time_update) / 1000000000)
+        self._state = last_heartrate
+        _LOGGER.debug("Last Heart Rate %s at %s", last_heartrate, self._last_updated)
         self._attributes = {}
 
 
 class GoogleFitStepsSensor(GoogleFitSensor):
     DATA_SOURCE = "derived:com.google.step_count.delta:" \
-                  "com.google.android.gms:estimated_steps"
+        "com.google.android.gms:estimated_steps"
 
     @property
     def _name_suffix(self):
@@ -537,13 +564,13 @@ class GoogleFitStepsSensor(GoogleFitSensor):
 
         self._last_updated = time.time()
         self._state = sum(values)
-        print(self.name, sum(values))
+        _LOGGER.debug("Steps %s", self._state)
         self._attributes = {}
 
 
 class GoogleFitMoveTimeSensor(GoogleFitSensor):
     DATA_SOURCE = "derived:com.google.active_minutes:" \
-                  "com.google.android.gms:merge_active_minutes"
+        "com.google.android.gms:merge_active_minutes"
 
     @property
     def _name_suffix(self):
@@ -571,13 +598,13 @@ class GoogleFitMoveTimeSensor(GoogleFitSensor):
 
         self._last_updated = time.time()
         self._state = sum(values)
-        #print(self.name, sum(values))
+        _LOGGER.debug("Move time %s", self._state)
         self._attributes = {}
 
 
 class GoogleFitCaloriesSensor(GoogleFitSensor):
     DATA_SOURCE = "derived:com.google.calories.expended:" \
-                  "com.google.android.gms:merge_calories_expended"
+        "com.google.android.gms:merge_calories_expended"
 
     @property
     def _name_suffix(self):
@@ -604,18 +631,18 @@ class GoogleFitCaloriesSensor(GoogleFitSensor):
 
         self._last_updated = time.time()
         self._state = round(sum(values))
-        #print(self.name, round(sum(values)))
+        _LOGGER.debug("Calories %s", self._state)
         self._attributes = {}
 
 
-class GoogleFitDistanceSensor(GoogleFitSensor):
+class GoogleFitDistanceKmSensor(GoogleFitSensor):
     DATA_SOURCE = "derived:com.google.distance.delta:" \
-                  "com.google.android.gms:merge_distance_delta"
+        "com.google.android.gms:merge_distance_delta"
 
     @property
     def _name_suffix(self):
         """Returns the name suffix of the sensor."""
-        return DISTANCE
+        return DISTANCE_KM
 
     @property
     def unit_of_measurement(self):
@@ -637,11 +664,43 @@ class GoogleFitDistanceSensor(GoogleFitSensor):
 
         self._last_updated = time.time()
         self._state = round(sum(values) / 1000, 2)
-        #print(self.name, round(sum(values) / 1000, 2))
+        _LOGGER.debug("Distance %s", self._state)
         self._attributes = {}
 
-class GoogleFitSleepSensor(GoogleFitSensor):
-    
+class GoogleFitDistanceMiSensor(GoogleFitSensor):
+    DATA_SOURCE = "derived:com.google.distance.delta:" \
+        "com.google.android.gms:merge_distance_delta"
+
+    @property
+    def _name_suffix(self):
+        """Returns the name suffix of the sensor."""
+        return DISTANCE_MI
+
+    @property
+    def unit_of_measurement(self):
+        """Returns the unit of measurement."""
+        return const.LENGTH_MILES
+
+    @property
+    def icon(self):
+        """Return the icon."""
+        return 'mdi:map-marker-distance'
+
+    @util.Throttle(MIN_TIME_BETWEEN_SCANS, MIN_TIME_BETWEEN_UPDATES)
+    def update(self):
+        """Extracts the relevant data points for from the Fitness API."""
+        values = []
+        for point in self._get_dataset(self.DATA_SOURCE)["point"]:
+            if int(point["startTimeNanos"]) > _today_dataset_start():
+                values.append(point['value'][0]['fpVal'])
+
+        self._last_updated = time.time()
+        self._state = round(sum(values) / 1000 * 0.62137119, 2)
+        _LOGGER.debug("Distance %s", self._state)
+        self._attributes = {}
+
+
+class GoogleFitSleepSensor(GoogleFitSensor):   
     @property
     def _name_suffix(self):
         """Returns the name suffix of the sensor."""
@@ -665,23 +724,27 @@ class GoogleFitSleepSensor(GoogleFitSensor):
         starttime = yesterday.isoformat("T") + "Z"
         today = datetime.now().replace(hour=11,minute=0,second=0,microsecond=0)
         endtime = today.isoformat("T") + "Z"
+        _LOGGER.debug("Starttime %s, Endtime %s", starttime, endtime)
         sleep_dataset =  self._client.users().sessions().list(userId='me',fields='session',startTime=starttime,endTime=endtime).execute()
         starts = []
         ends = []
         deep_sleep = []
         light_sleep = []
+        _LOGGER.debug("Sleep dataset %s", sleep_dataset)
         for point in sleep_dataset["session"]:
             if int(point["activityType"]) == 72 :
                 starts.append(int(point["startTimeMillis"]))
                 ends.append(int(point["endTimeMillis"]))
                 if  point["name"].startswith('Deep'):   
-                        deep_sleep_start = datetime.fromtimestamp(int(point["startTimeMillis"]) / 1000)
-                        deep_sleep_end = datetime.fromtimestamp(int(point["endTimeMillis"]) / 1000)
-                        deep_sleep.append(deep_sleep_end - deep_sleep_start)
+                    deep_sleep_start = datetime.fromtimestamp(int(point["startTimeMillis"]) / 1000)
+                    deep_sleep_end = datetime.fromtimestamp(int(point["endTimeMillis"]) / 1000)
+                    _LOGGER.debug("Deep Sleep dataset Total %s", (deep_sleep_end - deep_sleep_start))
+                    deep_sleep.append(deep_sleep_end - deep_sleep_start)
                 elif  point["name"].startswith('Light'):        
-                        light_sleep_start = datetime.fromtimestamp(int(point["startTimeMillis"]) / 1000)
-                        light_sleep_end = datetime.fromtimestamp(int(point["endTimeMillis"]) / 1000)
-                        light_sleep.append(light_sleep_end - light_sleep_start)
+                    light_sleep_start = datetime.fromtimestamp(int(point["startTimeMillis"]) / 1000)
+                    light_sleep_end = datetime.fromtimestamp(int(point["endTimeMillis"]) / 1000)
+                    _LOGGER.debug("Light Sleep dataset Total %s", (light_sleep_end - light_sleep_start))
+                    light_sleep.append(light_sleep_end - light_sleep_start)
         
         if len(starts) != 0 or len(ends) != 0:
             bed_time = datetime.fromtimestamp(round(min(starts) / 1000))
@@ -690,8 +753,61 @@ class GoogleFitSleepSensor(GoogleFitSensor):
             total_deep_sleep = sum(deep_sleep,timedelta())
             total_light_sleep = sum(light_sleep, timedelta())
             state_dict = dict({'bed_time': str(bed_time), 'wake_up_time': str(wake_up_time), 'sleep': str(total_sleep), 'deep_sleep': str(total_deep_sleep), 'light_sleep': str(total_light_sleep)})
-            print(state_dict)
             self._state = str(total_sleep)
+            self._attributes = state_dict
+            self._last_updated = time.time()
+        else:    
+            self._state = ""
+            self._attributes = {}
+            self._last_updated = time.time()
+
+
+class GoogleFitMeditationSensor(GoogleFitSensor):
+    @property
+    def _name_suffix(self):
+        """Returns the name suffix of the sensor."""
+        return MEDITATION
+
+    @property
+    def unit_of_measurement(self):
+        """Returns the unit of measurement."""
+        return MEDITATION
+
+    @property
+    def icon(self):
+        """Return the icon."""
+        return 'mdi:meditation'
+
+    @util.Throttle(MIN_TIME_BETWEEN_SCANS, MIN_TIME_BETWEEN_UPDATES)
+    def update(self):
+        """Extracts the relevant data points for from the Fitness API."""
+        yesterday = datetime.now().replace(hour=17,minute=0,second=0,microsecond=0)
+        yesterday = yesterday - timedelta(days=1)
+        starttime = yesterday.isoformat("T") + "Z"
+        today = datetime.now().replace(hour=11,minute=0,second=0,microsecond=0)
+        endtime = today.isoformat("T") + "Z"
+        _LOGGER.debug("Starttime %s, Endtime %s", starttime, endtime)
+        meditation_dataset =  self._client.users().sessions().list(userId='me',fields='session',startTime=starttime,endTime=endtime).execute()
+        starts = []
+        ends = []
+        meditation = []
+        _LOGGER.debug("Meditation dataset %s", meditation_dataset)
+        for point in meditation_dataset["session"]:
+            if int(point["activityType"]) == 45 : # https://developers.google.com/fit/rest/v1/reference/activity-types
+                starts.append(int(point["startTimeMillis"]))
+                ends.append(int(point["endTimeMillis"]))
+                meditation_start = datetime.fromtimestamp(int(point["startTimeMillis"]) / 1000)
+                meditation_end = datetime.fromtimestamp(int(point["endTimeMillis"]) / 1000)
+                _LOGGER.debug("Meditation dataset Total %s", (meditation_end - meditation_start))
+                meditation.append(meditation_end - meditation_start)
+        
+        if len(starts) != 0 or len(ends) != 0:
+            start_time = datetime.fromtimestamp(round(min(starts) / 1000))
+            end_time = datetime.fromtimestamp(round(max(ends) / 1000))
+            total_meditation = sum(meditation,timedelta())
+            total_meditation=total_meditation-timedelta(microseconds=total_meditation.microseconds)
+            state_dict = dict({'first_start_time': str(start_time), 'last_end_time': str(end_time), 'total_meditation': str(total_meditation)})
+            self._state = str(total_meditation)
             self._attributes = state_dict
             self._last_updated = time.time()
         else:    
